@@ -38,6 +38,8 @@ Servidor padrão: `http://localhost:3000`
 
 - `HOST`: host do Fastify. Default `0.0.0.0`.
 - `PORT`: porta HTTP. Default `3000`.
+- `APP_BIND_ADDRESS` e `APP_PORT`: bind/porta do serviço no `docker compose`.
+- `AUTH_BOOTSTRAP_BIND_ADDRESS` e `NOVNC_PORT`: bind/porta do `noVNC` no `docker compose`.
 - `HEADLESS`: executa o Chromium em headless. Default `true`.
 - `CAPTURE_TIMEOUT_MS`: timeout total por captura. Default `120000`.
 - `MAX_CONCURRENT_CAPTURES`: capturas simultâneas. Default `1`.
@@ -131,6 +133,80 @@ Recomendações:
 - Depois do bootstrap, rode o serviço normalmente com `HEADLESS=true`.
 - Se a sessão expirar, execute `pnpm auth:bootstrap` novamente na mesma VPS.
 
+## Docker Compose
+
+O projeto inclui um [docker-compose.yml](/Volumes/Extreme SSD/Develop/gusta-screen/docker-compose.yml:1) com dois serviços:
+
+- `app`: API em headless.
+- `auth-bootstrap`: Chrome persistente + `Xvfb` + `x11vnc` + `noVNC` para login manual.
+
+Os volumes `chrome-profile-data` e `auth-data` persistem o perfil do Chrome e o `storage state`.
+
+### Subir a API
+
+```bash
+docker compose up -d app
+```
+
+### Fazer bootstrap manual da sessão Google
+
+No host onde o Docker está rodando:
+
+```bash
+docker compose --profile auth up auth-bootstrap
+```
+
+Esse serviço:
+
+- publica o `noVNC` em `AUTH_BOOTSTRAP_BIND_ADDRESS:NOVNC_PORT`
+- abre um Chrome persistente em `/data/chrome-user-data`
+- espera o login manual
+- exporta a sessão para `/data/auth/google-storage-state.json`
+
+Se `AUTH_BOOTSTRAP_BIND_ADDRESS=127.0.0.1`, acesse por túnel SSH:
+
+```bash
+ssh -L 6080:127.0.0.1:6080 usuario@sua-vps
+```
+
+Depois abra:
+
+```text
+http://127.0.0.1:6080/vnc.html
+```
+
+Quando o bootstrap terminar, suba ou reinicie a API:
+
+```bash
+docker compose up -d app
+```
+
+### Exemplo para a VPS `89.117.33.99`
+
+Na VPS:
+
+```bash
+docker compose --profile auth up auth-bootstrap
+```
+
+No seu computador local:
+
+```bash
+ssh -L 6080:127.0.0.1:6080 usuario@89.117.33.99
+```
+
+No navegador local:
+
+```text
+http://127.0.0.1:6080/vnc.html
+```
+
+Depois do login:
+
+```bash
+docker compose up -d app
+```
+
 ## API
 
 ### `GET /health`
@@ -205,6 +281,8 @@ pnpm test
 pnpm test:unit
 pnpm test:integration
 pnpm test:smoke
+docker compose up -d app
+docker compose --profile auth up auth-bootstrap
 ```
 
 ## Smoke tests reais
