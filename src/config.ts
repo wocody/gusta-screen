@@ -26,10 +26,7 @@ export interface AppConfig {
   userAgent: string;
   chromeUserDataDir: string;
   googleStorageStatePath: string;
-  googleEmail?: string;
-  googlePassword?: string;
-  googleAuthHeadless: boolean;
-  googleAuthBrowserChannel?: string;
+  googleAuthBrowserChannel: string;
   googleAuthTimeoutMs: number;
   youtubeAllowedHosts: string[];
   twitchAllowedHosts: string[];
@@ -99,9 +96,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     googleStorageStatePath: path.resolve(
       env.GOOGLE_STORAGE_STATE_PATH ?? ".auth/google-storage-state.json"
     ),
-    googleEmail: env.GOOGLE_EMAIL?.trim() || undefined,
-    googlePassword: env.GOOGLE_PASSWORD || undefined,
-    googleAuthHeadless: parseBoolean(env, "GOOGLE_AUTH_HEADLESS", false),
     googleAuthBrowserChannel: env.GOOGLE_AUTH_BROWSER_CHANNEL?.trim() || "chrome",
     googleAuthTimeoutMs: parseNumber(env, "GOOGLE_AUTH_TIMEOUT_MS", 180_000),
     youtubeAllowedHosts: parseHostList(

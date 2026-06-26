@@ -47,14 +47,12 @@ Servidor padrão: `http://localhost:3000`
 - `USER_AGENT`: user-agent desktop usado no browser.
 - `CHROME_USER_DATA_DIR`: diretório do perfil persistente do Chrome usado no bootstrap manual. Default `.auth/chrome-user-data`.
 - `GOOGLE_STORAGE_STATE_PATH`: caminho do storage state reutilizado pelo Playwright.
-- `GOOGLE_EMAIL` e `GOOGLE_PASSWORD`: credenciais usadas apenas pelo script de login.
-- `GOOGLE_AUTH_HEADLESS`: define se o login Google roda em headless. Default `false`.
 - `GOOGLE_AUTH_BROWSER_CHANNEL`: canal do navegador usado no login Google. Default `chrome`.
 - `GOOGLE_AUTH_TIMEOUT_MS`: timeout do fluxo de login do Google. Default `180000`.
 
 ## YouTube autenticado
 
-O fluxo recomendado é gerar uma sessão autenticada manualmente em um perfil persistente do Chrome e exportar o `storage state` para o serviço.
+O fluxo suportado é gerar uma sessão autenticada manualmente em um perfil persistente do navegador e exportar o `storage state` para o serviço.
 
 ### Opção recomendada: bootstrap manual
 
@@ -64,28 +62,17 @@ pnpm auth:bootstrap
 
 Esse comando:
 
-- abre um Chrome real com perfil persistente em `CHROME_USER_DATA_DIR`
+- abre um navegador com perfil persistente em `CHROME_USER_DATA_DIR`
 - espera você concluir o login manualmente
 - exporta a sessão autenticada para `GOOGLE_STORAGE_STATE_PATH`
 
 Depois disso, o serviço passa a reutilizar esse `storage state` automaticamente nas capturas.
 
-### Opção alternativa: login automatizado
-
-Se o Google aceitar a automação na sua máquina, você ainda pode tentar:
-
-```bash
-GOOGLE_EMAIL='seu-email@gmail.com' \
-GOOGLE_PASSWORD='sua-senha' \
-pnpm auth:google
-```
-
-Esse modo é menos confiável e pode ser bloqueado pelo Google com mensagens como `This browser or app may not be secure`.
-
 Observações:
 
 - Isso ajuda em vídeos públicos com prompt de login ou confirmação de idade.
 - Isso não desbloqueia vídeos privados, members-only ou bloqueados por região.
+- Login com credenciais salvas em `.env` não é suportado por design.
 - O arquivo `.auth/` fica fora do versionamento.
 - O perfil persistente em `CHROME_USER_DATA_DIR` também fica fora do versionamento.
 
@@ -278,7 +265,6 @@ pnpm build
 pnpm start
 pnpm check
 pnpm auth:bootstrap
-pnpm auth:google
 pnpm test
 pnpm test:unit
 pnpm test:integration
