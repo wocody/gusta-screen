@@ -5,6 +5,7 @@ DISPLAY="${DISPLAY:-:99}"
 SCREEN_GEOMETRY="${SCREEN_GEOMETRY:-1920x1080x24}"
 VNC_PORT="${VNC_PORT:-5900}"
 NOVNC_PORT="${NOVNC_PORT:-6080}"
+export GOOGLE_AUTH_BROWSER_CHANNEL="${GOOGLE_AUTH_BROWSER_CHANNEL:-chromium}"
 
 XVFB_PID=""
 FLUXBOX_PID=""
@@ -50,4 +51,4 @@ NOVNC_PID=$!
 echo "noVNC available inside container on http://127.0.0.1:${NOVNC_PORT}/vnc.html"
 echo "Starting manual Google auth bootstrap with persistent Chrome profile..."
 
-exec pnpm auth:bootstrap
+exec pnpm auth:bootstrap:prod

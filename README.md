@@ -159,9 +159,11 @@ docker compose --profile auth up auth-bootstrap
 Esse serviço:
 
 - publica o `noVNC` em `AUTH_BOOTSTRAP_BIND_ADDRESS:NOVNC_PORT`
-- abre um Chrome persistente em `/data/chrome-user-data`
+- abre um navegador persistente em `/data/chrome-user-data`
 - espera o login manual
 - exporta a sessão para `/data/auth/google-storage-state.json`
+
+Dentro do container, o bootstrap usa o `chromium` empacotado pela imagem do Playwright, sem depender do Google Chrome instalado no host.
 
 Se `AUTH_BOOTSTRAP_BIND_ADDRESS=127.0.0.1`, acesse por túnel SSH:
 
