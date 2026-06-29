@@ -7,12 +7,20 @@ import { createTestConfig } from "../helpers/test-config";
 
 const youtubeUrl = process.env.SMOKE_YOUTUBE_URL;
 const twitchUrl = process.env.SMOKE_TWITCH_URL;
-const shouldRun = Boolean(youtubeUrl || twitchUrl);
+const youtubeRapidApiKey = process.env.YOUTUBE_RAPIDAPI_KEY;
+const shouldRun = Boolean(twitchUrl || (youtubeUrl && youtubeRapidApiKey));
 const smokeDescribe = shouldRun ? describe : describe.skip;
 
 smokeDescribe("real provider smoke", () => {
   const config = createTestConfig({
-    captureTimeoutMs: 120_000
+    captureTimeoutMs: 120_000,
+    youtubeRapidApiKey,
+    youtubeRapidApiHost:
+      process.env.YOUTUBE_RAPIDAPI_HOST ||
+      "youtube-thumbnail-screenshots-api.p.rapidapi.com",
+    youtubeRapidApiBaseUrl:
+      process.env.YOUTUBE_RAPIDAPI_BASE_URL ||
+      "https://youtube-thumbnail-screenshots-api.p.rapidapi.com"
   });
   const logger = createLogger(config);
   const browserManager = new PlaywrightBrowserManager(config, logger);
@@ -30,7 +38,7 @@ smokeDescribe("real provider smoke", () => {
     await browserManager.close();
   });
 
-  if (youtubeUrl) {
+  if (youtubeUrl && youtubeRapidApiKey) {
     it(
       "captures a real YouTube URL",
       async () => {

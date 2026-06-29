@@ -5,7 +5,6 @@ import {
   type BrowserContextOptions
 } from "playwright";
 
-import { getGoogleStorageStatePath } from "../auth/google-auth";
 import type { AppConfig } from "../config";
 import type { AppLogger } from "../logger";
 
@@ -24,14 +23,9 @@ export class PlaywrightBrowserManager implements BrowserManager {
 
   async newContext(): Promise<BrowserContext> {
     const browser = await this.getBrowser();
-    const contextOptions = await createBrowserContextOptions(this.config);
-    if (contextOptions.storageState) {
-      this.logger.debug(
-        { storageStatePath: contextOptions.storageState },
-        "Loading Google storage state into Playwright context"
-      );
-    }
-    const context = await browser.newContext(contextOptions);
+    const context = await browser.newContext(
+      createBrowserContextOptions(this.config)
+    );
 
     await context.addInitScript(() => {
       Object.defineProperty(navigator, "webdriver", {
@@ -80,18 +74,15 @@ export class PlaywrightBrowserManager implements BrowserManager {
   }
 }
 
-export async function createBrowserContextOptions(
+export function createBrowserContextOptions(
   config: AppConfig
-): Promise<BrowserContextOptions> {
-  const storageState = await getGoogleStorageStatePath(config);
-
+): BrowserContextOptions {
   return {
     viewport: {
       width: config.viewportWidth,
       height: config.viewportHeight
     },
     userAgent: config.userAgent,
-    locale: "en-US",
-    ...(storageState ? { storageState } : {})
+    locale: "en-US"
   };
 }

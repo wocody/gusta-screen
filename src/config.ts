@@ -1,5 +1,4 @@
 import dotenv from "dotenv";
-import path from "node:path";
 
 dotenv.config();
 
@@ -24,10 +23,9 @@ export interface AppConfig {
   captureTimeoutMs: number;
   maxConcurrentCaptures: number;
   userAgent: string;
-  chromeUserDataDir: string;
-  googleStorageStatePath: string;
-  googleAuthBrowserChannel: string;
-  googleAuthTimeoutMs: number;
+  youtubeRapidApiKey?: string;
+  youtubeRapidApiHost: string;
+  youtubeRapidApiBaseUrl: string;
   youtubeAllowedHosts: string[];
   twitchAllowedHosts: string[];
   insecureAllowedHosts: string[];
@@ -75,6 +73,10 @@ function parseHostList(value: string | undefined, fallback: string[]): string[] 
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
+  const youtubeRapidApiHost =
+    env.YOUTUBE_RAPIDAPI_HOST?.trim() ||
+    "youtube-thumbnail-screenshots-api.p.rapidapi.com";
+
   return {
     host: env.HOST ?? "0.0.0.0",
     port: parseNumber(env, "PORT", 3000),
@@ -90,14 +92,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     captureTimeoutMs: parseNumber(env, "CAPTURE_TIMEOUT_MS", 120_000),
     maxConcurrentCaptures: parseNumber(env, "MAX_CONCURRENT_CAPTURES", 1),
     userAgent: env.USER_AGENT ?? DEFAULT_USER_AGENT,
-    chromeUserDataDir: path.resolve(
-      env.CHROME_USER_DATA_DIR ?? ".auth/chrome-user-data"
-    ),
-    googleStorageStatePath: path.resolve(
-      env.GOOGLE_STORAGE_STATE_PATH ?? ".auth/google-storage-state.json"
-    ),
-    googleAuthBrowserChannel: env.GOOGLE_AUTH_BROWSER_CHANNEL?.trim() || "chrome",
-    googleAuthTimeoutMs: parseNumber(env, "GOOGLE_AUTH_TIMEOUT_MS", 180_000),
+    youtubeRapidApiKey: env.YOUTUBE_RAPIDAPI_KEY?.trim() || undefined,
+    youtubeRapidApiHost,
+    youtubeRapidApiBaseUrl:
+      env.YOUTUBE_RAPIDAPI_BASE_URL?.trim() ||
+      `https://${youtubeRapidApiHost}`,
     youtubeAllowedHosts: parseHostList(
       env.YOUTUBE_ALLOWED_HOSTS,
       DEFAULT_YOUTUBE_HOSTS

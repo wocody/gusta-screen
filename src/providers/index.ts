@@ -2,11 +2,10 @@ import type { ProviderName } from "../types";
 
 import type { ProviderHandler } from "./base";
 import { TwitchProvider } from "./twitch-provider";
-import { YouTubeProvider } from "./youtube-provider";
 
 export function createProvider(provider: ProviderName): ProviderHandler {
-  if (provider === "youtube") {
-    return new YouTubeProvider();
+  if (provider !== "twitch") {
+    throw new Error(`No Playwright provider is registered for ${provider}.`);
   }
 
   return new TwitchProvider();

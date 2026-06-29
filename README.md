@@ -1,19 +1,21 @@
 # gusta-screen
 
-Serviço HTTP em `Node.js + Fastify + Playwright` que recebe uma URL pública de YouTube ou Twitch e devolve uma screenshot PNG do vídeo em tela cheia.
+Serviço HTTP em `Node.js + Fastify + Playwright` que recebe uma URL pública de YouTube ou Twitch e devolve uma imagem PNG.
 
 ## O que o serviço faz
 
-- Aceita `watch/live` públicos do YouTube.
-- Aceita canal ao vivo e VOD públicos da Twitch.
-- Entra em fullscreen pelo player.
-- Aguarda anúncio terminar.
-- Pula anúncio do YouTube quando o botão aparecer.
-- Nunca devolve imagem com anúncio visível: se o anúncio persistir além do timeout, responde erro `504`.
+- YouTube: usa a API externa [YouTube Thumbnail & Screenshots API](https://rapidapi.com/mahmudulhasandev/api/youtube-thumbnail-screenshots-api) para obter uma imagem do vídeo e a renderiza como `image/png`.
+- Twitch: continua usando Playwright para abrir o player, entrar em fullscreen, aguardar anúncio terminar e capturar a viewport.
+- Responde sempre de forma síncrona em `POST /api/screenshot`.
+
+## Comportamento por provider
+
+- `youtube`: aceita URLs `watch` e `/live/<video-id>`. O serviço consulta o RapidAPI, escolhe a melhor screenshot disponível e usa thumbnail como fallback. `X-Ad-Wait-Ms` sempre será `0`.
+- `twitch`: aceita canal público ao vivo e VOD público. Mantém a lógica atual de autoplay, fullscreen e espera de anúncio.
 
 ## Fora de escopo do v1
 
-- URLs privadas, members-only ou com geoblock.
+- Login Google ou qualquer sessão autenticada.
 - YouTube Shorts, Twitch Clips e formatos fora do padrão.
 - Filas assíncronas, armazenamento de screenshots e autenticação da API.
 
@@ -22,6 +24,7 @@ Serviço HTTP em `Node.js + Fastify + Playwright` que recebe uma URL pública de
 - Node `22+`
 - `pnpm`
 - Chromium do Playwright instalado localmente
+- Chave `RapidAPI` para capturas de YouTube
 
 ## Rodando localmente
 
@@ -39,162 +42,14 @@ Servidor padrão: `http://localhost:3000`
 - `HOST`: host do Fastify. Default `0.0.0.0`.
 - `PORT`: porta HTTP. Default `3000`.
 - `APP_BIND_ADDRESS` e `APP_PORT`: bind/porta do serviço no `docker compose`.
-- `AUTH_BOOTSTRAP_BIND_ADDRESS` e `NOVNC_PORT`: bind/porta do `noVNC` no `docker compose`.
 - `HEADLESS`: executa o Chromium em headless. Default `true`.
 - `CAPTURE_TIMEOUT_MS`: timeout total por captura. Default `120000`.
 - `MAX_CONCURRENT_CAPTURES`: capturas simultâneas. Default `1`.
 - `VIEWPORT_WIDTH` e `VIEWPORT_HEIGHT`: resolução fixa da viewport. Defaults `1920x1080`.
 - `USER_AGENT`: user-agent desktop usado no browser.
-- `CHROME_USER_DATA_DIR`: diretório do perfil persistente do Chrome usado no bootstrap manual. Default `.auth/chrome-user-data`.
-- `GOOGLE_STORAGE_STATE_PATH`: caminho do storage state reutilizado pelo Playwright.
-- `GOOGLE_AUTH_BROWSER_CHANNEL`: canal do navegador usado no login Google. Default `chrome`.
-- `GOOGLE_AUTH_TIMEOUT_MS`: timeout do fluxo de login do Google. Default `180000`.
-
-## YouTube autenticado
-
-O fluxo suportado é gerar uma sessão autenticada manualmente em um perfil persistente do navegador e exportar o `storage state` para o serviço.
-
-### Opção recomendada: bootstrap manual
-
-```bash
-pnpm auth:bootstrap
-```
-
-Esse comando:
-
-- abre um navegador com perfil persistente em `CHROME_USER_DATA_DIR`
-- espera você concluir o login manualmente
-- exporta a sessão autenticada para `GOOGLE_STORAGE_STATE_PATH`
-
-Depois disso, o serviço passa a reutilizar esse `storage state` automaticamente nas capturas.
-
-Observações:
-
-- Isso ajuda em vídeos públicos com prompt de login ou confirmação de idade.
-- Isso não desbloqueia vídeos privados, members-only ou bloqueados por região.
-- Login com credenciais salvas em `.env` não é suportado por design.
-- O arquivo `.auth/` fica fora do versionamento.
-- O perfil persistente em `CHROME_USER_DATA_DIR` também fica fora do versionamento.
-
-## Bootstrap em VPS sem interface
-
-Se a aplicação vai rodar em uma VPS sem desktop, a forma mais estável é abrir uma interface remota temporária apenas para o login manual.
-
-### Fluxo recomendado
-
-1. Inicie um display virtual com `Xvfb`.
-2. Exponha esse display com `x11vnc`.
-3. Publique o acesso web com `noVNC`.
-4. Rode `pnpm auth:bootstrap` na VPS.
-5. Acesse a sessão remota pelo navegador, faça login no Google e conclua eventuais desafios.
-6. Quando o script exportar `GOOGLE_STORAGE_STATE_PATH`, finalize `noVNC` e volte a rodar o serviço normalmente em headless.
-
-### Exemplo de comando na VPS
-
-```bash
-Xvfb :99 -screen 0 1920x1080x24 &
-export DISPLAY=:99
-
-x11vnc -display :99 -forever -shared -nopw -listen 127.0.0.1 -rfbport 5900 &
-/opt/novnc/utils/novnc_proxy --vnc 127.0.0.1:5900 --listen 6080 &
-
-pnpm auth:bootstrap
-```
-
-Depois, crie um túnel SSH local:
-
-```bash
-ssh -L 6080:127.0.0.1:6080 usuario@sua-vps
-```
-
-Abra no seu navegador local:
-
-```text
-http://127.0.0.1:6080/vnc.html
-```
-
-Recomendações:
-
-- Não exponha `noVNC` diretamente na internet sem proteção.
-- Use uma conta Google dedicada ao serviço.
-- Depois do bootstrap, rode o serviço normalmente com `HEADLESS=true`.
-- Se a sessão expirar, execute `pnpm auth:bootstrap` novamente na mesma VPS.
-
-## Docker Compose
-
-O projeto inclui um [docker-compose.yml](/Volumes/Extreme SSD/Develop/gusta-screen/docker-compose.yml:1) com dois serviços:
-
-- `app`: API em headless.
-- `auth-bootstrap`: Chrome persistente + `Xvfb` + `x11vnc` + `noVNC` para login manual.
-
-Os volumes `chrome-profile-data` e `auth-data` persistem o perfil do Chrome e o `storage state`.
-
-### Subir a API
-
-```bash
-docker compose up -d app
-```
-
-### Fazer bootstrap manual da sessão Google
-
-No host onde o Docker está rodando:
-
-```bash
-docker compose --profile auth up auth-bootstrap
-```
-
-Esse serviço:
-
-- publica o `noVNC` em `AUTH_BOOTSTRAP_BIND_ADDRESS:NOVNC_PORT`
-- abre um navegador persistente em `/data/chrome-user-data`
-- espera o login manual
-- exporta a sessão para `/data/auth/google-storage-state.json`
-
-Dentro do container, o bootstrap usa o `chromium` empacotado pela imagem do Playwright, sem depender do Google Chrome instalado no host.
-
-Se `AUTH_BOOTSTRAP_BIND_ADDRESS=127.0.0.1`, acesse por túnel SSH:
-
-```bash
-ssh -L 6080:127.0.0.1:6080 usuario@sua-vps
-```
-
-Depois abra:
-
-```text
-http://127.0.0.1:6080/vnc.html
-```
-
-Quando o bootstrap terminar, suba ou reinicie a API:
-
-```bash
-docker compose up -d app
-```
-
-### Exemplo para a VPS `89.117.33.99`
-
-Na VPS:
-
-```bash
-docker compose --profile auth up auth-bootstrap
-```
-
-No seu computador local:
-
-```bash
-ssh -L 6080:127.0.0.1:6080 usuario@89.117.33.99
-```
-
-No navegador local:
-
-```text
-http://127.0.0.1:6080/vnc.html
-```
-
-Depois do login:
-
-```bash
-docker compose up -d app
-```
+- `YOUTUBE_RAPIDAPI_KEY`: chave da API externa usada nas capturas de YouTube.
+- `YOUTUBE_RAPIDAPI_HOST`: host RapidAPI do provider. Default `youtube-thumbnail-screenshots-api.p.rapidapi.com`.
+- `YOUTUBE_RAPIDAPI_BASE_URL`: base URL do provider. Default `https://youtube-thumbnail-screenshots-api.p.rapidapi.com`.
 
 ## API
 
@@ -239,8 +94,8 @@ Erros padronizados:
 
 - `400`: body inválido
 - `422`: URL ou conteúdo não suportado
-- `500`: falha de navegação, player ou fullscreen
-- `504`: anúncio não terminou antes do timeout
+- `500`: falha de captura local ou da integração externa
+- `504`: anúncio da Twitch não terminou antes do timeout
 
 Exemplo de erro:
 
@@ -257,6 +112,23 @@ Exemplo de erro:
 }
 ```
 
+## Docker Compose
+
+O projeto inclui um [docker-compose.yml](/Volumes/Extreme SSD/Develop/gusta-screen/docker-compose.yml:1) com um único serviço `app`.
+
+Subir a API:
+
+```bash
+docker compose up -d app
+```
+
+O compose já força `HEADLESS=true` e `PRETTY_LOGS=false`. Para capturas de YouTube, exporte a chave antes de subir:
+
+```bash
+export YOUTUBE_RAPIDAPI_KEY='sua-chave'
+docker compose up -d app
+```
+
 ## Scripts
 
 ```bash
@@ -264,22 +136,24 @@ pnpm dev
 pnpm build
 pnpm start
 pnpm check
-pnpm auth:bootstrap
 pnpm test
 pnpm test:unit
 pnpm test:integration
 pnpm test:smoke
 docker compose up -d app
-docker compose --profile auth up auth-bootstrap
 ```
 
 ## Smoke tests reais
 
-Os smoke tests são opcionais e só rodam se você informar uma URL real via env:
+Os smoke tests são opcionais:
 
 ```bash
-SMOKE_YOUTUBE_URL='https://www.youtube.com/watch?v=...' pnpm test:smoke
-SMOKE_TWITCH_URL='https://www.twitch.tv/videos/...' pnpm test:smoke
+YOUTUBE_RAPIDAPI_KEY='sua-chave' \
+SMOKE_YOUTUBE_URL='https://www.youtube.com/watch?v=...' \
+pnpm test:smoke
+
+SMOKE_TWITCH_URL='https://www.twitch.tv/videos/...' \
+pnpm test:smoke
 ```
 
 ## Docker

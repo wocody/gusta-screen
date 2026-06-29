@@ -16,6 +16,15 @@ describe("resolveTargetUrl", () => {
     expect(result.provider).toBe("youtube");
   });
 
+  it("accepts YouTube live URLs with a video id", () => {
+    const result = resolveTargetUrl(
+      "https://www.youtube.com/live/abc123",
+      config
+    );
+
+    expect(result.provider).toBe("youtube");
+  });
+
   it("accepts Twitch VOD URLs", () => {
     const result = resolveTargetUrl(
       "https://www.twitch.tv/videos/123456",
@@ -28,6 +37,10 @@ describe("resolveTargetUrl", () => {
   it("rejects unsupported YouTube URL shapes", () => {
     expect(() =>
       resolveTargetUrl("https://www.youtube.com/shorts/abc123", config)
+    ).toThrowError(AppError);
+
+    expect(() =>
+      resolveTargetUrl("https://www.youtube.com/live", config)
     ).toThrowError(AppError);
   });
 

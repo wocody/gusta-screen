@@ -4,17 +4,20 @@ import type { BrowserContext, Route } from "playwright";
 import { createApp } from "../../src/api/app";
 import { PlaywrightBrowserManager } from "../../src/browser/browser-manager";
 import {
+  type CaptureServiceDependencies,
   PlaywrightCaptureService,
   type CaptureServiceHooks
 } from "../../src/capture/capture-service";
 import { createLogger } from "../../src/logger";
+import type { YouTubeImageClient } from "../../src/youtube/rapidapi-client";
 import { createTestConfig } from "../helpers/test-config";
-import {
-  createTwitchFixtureHtml,
-  createYouTubeFixtureHtml
-} from "../helpers/provider-fixtures";
+import { createTwitchFixtureHtml } from "../helpers/provider-fixtures";
 
 const PNG_SIGNATURE = "89504e470d0a1a0a";
+const TINY_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+yF9kAAAAASUVORK5CYII=",
+  "base64"
+);
 
 const config = createTestConfig({
   captureTimeoutMs: 2_500
@@ -47,7 +50,8 @@ async function installFixtureRoutes(
 
 function createIntegrationApp(
   fixtures: Record<string, string>,
-  overrides: Partial<ReturnType<typeof createTestConfig>> = {}
+  overrides: Partial<ReturnType<typeof createTestConfig>> = {},
+  dependencies: CaptureServiceDependencies = {}
 ) {
   const runtimeConfig = createTestConfig({
     ...config,
@@ -62,7 +66,8 @@ function createIntegrationApp(
     browserManager,
     runtimeConfig,
     logger,
-    hooks
+    hooks,
+    dependencies
   );
 
   return createApp({
@@ -76,11 +81,16 @@ afterAll(async () => {
 });
 
 describe("POST /api/screenshot integration", () => {
-  it("captures a YouTube screenshot with no ad", async () => {
+  it("renders a YouTube image returned by the external media client", async () => {
     const url = "https://www.youtube.com/watch?v=fixture-no-ad";
-    const app = createIntegrationApp({
-      [url]: createYouTubeFixtureHtml()
-    });
+    const youtubeClient: YouTubeImageClient = {
+      fetchImage: async () => ({
+        bytes: TINY_PNG,
+        contentType: "image/png",
+        sourceUrl: "https://images.example.com/fixture.png"
+      })
+    };
+    const app = createIntegrationApp({}, {}, { youtubeClient });
 
     try {
       const response = await app.inject({
@@ -92,31 +102,10 @@ describe("POST /api/screenshot integration", () => {
       expect(response.statusCode).toBe(200);
       expect(response.headers["content-type"]).toContain("image/png");
       expect(response.headers["x-provider"]).toBe("youtube");
+      expect(response.headers["x-ad-wait-ms"]).toBe("0");
       expect(response.rawPayload.subarray(0, 8).toString("hex")).toBe(
         PNG_SIGNATURE
       );
-    } finally {
-      await app.close();
-    }
-  });
-
-  it("skips a YouTube ad before capturing", async () => {
-    const url = "https://www.youtube.com/watch?v=fixture-skip-ad";
-    const app = createIntegrationApp({
-      [url]: createYouTubeFixtureHtml({
-        ad: { type: "skip", skipAppearsMs: 300 }
-      })
-    });
-
-    try {
-      const response = await app.inject({
-        method: "POST",
-        url: "/api/screenshot",
-        payload: { url }
-      });
-
-      expect(response.statusCode).toBe(200);
-      expect(Number(response.headers["x-ad-wait-ms"])).toBeGreaterThan(0);
     } finally {
       await app.close();
     }
@@ -207,35 +196,14 @@ describe("POST /api/screenshot integration", () => {
     }
   });
 
-  it("handles YouTube consent and simple gates", async () => {
-    const url = "https://www.youtube.com/watch?v=fixture-consent";
-    const app = createIntegrationApp({
-      [url]: createYouTubeFixtureHtml({
-        consent: true,
-        gate: true
-      })
-    });
-
-    try {
-      const response = await app.inject({
-        method: "POST",
-        url: "/api/screenshot",
-        payload: { url }
-      });
-
-      expect(response.statusCode).toBe(200);
-    } finally {
-      await app.close();
-    }
-  });
-
-  it("fails when fullscreen cannot be entered", async () => {
-    const url = "https://www.youtube.com/watch?v=fixture-fullscreen-fail";
-    const app = createIntegrationApp({
-      [url]: createYouTubeFixtureHtml({
-        fullscreenWorks: false
-      })
-    });
+  it("propagates YouTube media client failures", async () => {
+    const url = "https://www.youtube.com/watch?v=fixture-upstream-failure";
+    const youtubeClient: YouTubeImageClient = {
+      fetchImage: async () => {
+        throw new Error("YouTube media API request failed.");
+      }
+    };
+    const app = createIntegrationApp({}, {}, { youtubeClient });
 
     try {
       const response = await app.inject({
@@ -247,7 +215,8 @@ describe("POST /api/screenshot integration", () => {
       expect(response.statusCode).toBe(500);
       expect(response.json()).toMatchObject({
         error: {
-          code: "fullscreen_failed"
+          code: "capture_failed",
+          message: "YouTube media API request failed."
         }
       });
     } finally {

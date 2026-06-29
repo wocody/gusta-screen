@@ -33,13 +33,13 @@ function resolveYouTubeUrl(url: URL): ResolvedTarget {
     return { provider: "youtube", normalizedUrl: url.toString(), url };
   }
 
-  if (/^\/live(\/[^/]+)?\/?$/.test(url.pathname)) {
+  if (/^\/live\/[^/]+\/?$/.test(url.pathname)) {
     return { provider: "youtube", normalizedUrl: url.toString(), url };
   }
 
   throw createUnsupportedUrlError(
     url.toString(),
-    "Only standard YouTube watch and live URLs are supported."
+    "Only standard YouTube watch URLs and /live/<video-id> URLs are supported."
   );
 }
 
