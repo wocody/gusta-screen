@@ -28,21 +28,6 @@ function isAllowedScheme(url: URL, config: AppConfig): boolean {
   );
 }
 
-function resolveYouTubeUrl(url: URL): ResolvedTarget {
-  if (url.pathname === "/watch" && url.searchParams.get("v")) {
-    return { provider: "youtube", normalizedUrl: url.toString(), url };
-  }
-
-  if (/^\/live\/[^/]+\/?$/.test(url.pathname)) {
-    return { provider: "youtube", normalizedUrl: url.toString(), url };
-  }
-
-  throw createUnsupportedUrlError(
-    url.toString(),
-    "Only standard YouTube watch URLs and /live/<video-id> URLs are supported."
-  );
-}
-
 function resolveTwitchUrl(url: URL): ResolvedTarget {
   if (/^\/videos\/\d+\/?$/.test(url.pathname)) {
     return { provider: "twitch", normalizedUrl: url.toString(), url };
@@ -77,16 +62,12 @@ export function resolveTargetUrl(
     );
   }
 
-  if (hostMatches(url, config.youtubeAllowedHosts)) {
-    return resolveYouTubeUrl(url);
-  }
-
   if (hostMatches(url, config.twitchAllowedHosts)) {
     return resolveTwitchUrl(url);
   }
 
   throw createUnsupportedUrlError(
     rawUrl,
-    "Only YouTube and Twitch URLs are supported."
+    "Only Twitch URLs are supported."
   );
 }

@@ -1,29 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveTargetUrl } from "../../src/url/resolve-target";
 import { AppError } from "../../src/errors";
+import { resolveTargetUrl } from "../../src/url/resolve-target";
 import { createTestConfig } from "../helpers/test-config";
 
 describe("resolveTargetUrl", () => {
   const config = createTestConfig();
-
-  it("accepts standard YouTube watch URLs", () => {
-    const result = resolveTargetUrl(
-      "https://www.youtube.com/watch?v=abc123",
-      config
-    );
-
-    expect(result.provider).toBe("youtube");
-  });
-
-  it("accepts YouTube live URLs with a video id", () => {
-    const result = resolveTargetUrl(
-      "https://www.youtube.com/live/abc123",
-      config
-    );
-
-    expect(result.provider).toBe("youtube");
-  });
 
   it("accepts Twitch VOD URLs", () => {
     const result = resolveTargetUrl(
@@ -34,31 +16,33 @@ describe("resolveTargetUrl", () => {
     expect(result.provider).toBe("twitch");
   });
 
-  it("rejects unsupported YouTube URL shapes", () => {
-    expect(() =>
-      resolveTargetUrl("https://www.youtube.com/shorts/abc123", config)
-    ).toThrowError(AppError);
+  it("accepts Twitch channel URLs", () => {
+    const result = resolveTargetUrl("https://www.twitch.tv/somechannel", config);
 
-    expect(() =>
-      resolveTargetUrl("https://www.youtube.com/live", config)
-    ).toThrowError(AppError);
+    expect(result.provider).toBe("twitch");
   });
 
-  it("rejects unsupported hosts", () => {
+  it("rejects non-Twitch URLs", () => {
     expect(() =>
       resolveTargetUrl("https://example.com/video", config)
     ).toThrowError(AppError);
   });
 
+  it("rejects unsupported Twitch URL shapes", () => {
+    expect(() =>
+      resolveTargetUrl("https://www.twitch.tv/directory/game/abc", config)
+    ).toThrowError(AppError);
+  });
+
   it("allows loopback HTTP URLs for tests only", () => {
     const localConfig = createTestConfig({
-      youtubeAllowedHosts: ["127.0.0.1:8080"]
+      twitchAllowedHosts: ["127.0.0.1:8080"]
     });
     const result = resolveTargetUrl(
-      "http://127.0.0.1:8080/watch?v=fixture",
+      "http://127.0.0.1:8080/videos/123",
       localConfig
     );
 
-    expect(result.provider).toBe("youtube");
+    expect(result.provider).toBe("twitch");
   });
 });

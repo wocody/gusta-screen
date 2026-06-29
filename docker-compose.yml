@@ -9,8 +9,5 @@ services:
       PORT: 3000
       HEADLESS: "true"
       PRETTY_LOGS: "false"
-      YOUTUBE_RAPIDAPI_KEY: "${YOUTUBE_RAPIDAPI_KEY:-}"
-      YOUTUBE_RAPIDAPI_HOST: "${YOUTUBE_RAPIDAPI_HOST:-youtube-thumbnail-screenshots-api.p.rapidapi.com}"
-      YOUTUBE_RAPIDAPI_BASE_URL: "${YOUTUBE_RAPIDAPI_BASE_URL:-https://youtube-thumbnail-screenshots-api.p.rapidapi.com}"
     ports:
       - "${APP_BIND_ADDRESS:-0.0.0.0}:${APP_PORT:-3000}:3000"

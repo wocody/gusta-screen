@@ -4,9 +4,6 @@ import type { ProviderHandler } from "./base";
 import { TwitchProvider } from "./twitch-provider";
 
 export function createProvider(provider: ProviderName): ProviderHandler {
-  if (provider !== "twitch") {
-    throw new Error(`No Playwright provider is registered for ${provider}.`);
-  }
-
+  void provider;
   return new TwitchProvider();
 }

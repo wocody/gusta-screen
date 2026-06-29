@@ -1,22 +1,22 @@
 # gusta-screen
 
-Serviço HTTP em `Node.js + Fastify + Playwright` que recebe uma URL pública de YouTube ou Twitch e devolve uma imagem PNG.
+Serviço HTTP em `Node.js + Fastify + Playwright` que recebe uma URL pública da Twitch e devolve uma screenshot PNG do player em fullscreen.
 
 ## O que o serviço faz
 
-- YouTube: usa a API externa [YouTube Thumbnail & Screenshots API](https://rapidapi.com/mahmudulhasandev/api/youtube-thumbnail-screenshots-api) para obter uma imagem do vídeo e a renderiza como `image/png`.
-- Twitch: continua usando Playwright para abrir o player, entrar em fullscreen, aguardar anúncio terminar e capturar a viewport.
-- Responde sempre de forma síncrona em `POST /api/screenshot`.
-
-## Comportamento por provider
-
-- `youtube`: aceita URLs `watch` e `/live/<video-id>`. O serviço consulta o RapidAPI, escolhe a melhor screenshot disponível e usa thumbnail como fallback. `X-Ad-Wait-Ms` sempre será `0`.
-- `twitch`: aceita canal público ao vivo e VOD público. Mantém a lógica atual de autoplay, fullscreen e espera de anúncio.
+- Aceita canal ao vivo e VOD públicos da Twitch.
+- Abre o player com Playwright.
+- Resolve consent/gates simples.
+- Inicia a reprodução quando necessário.
+- Entra em fullscreen pelo player.
+- Aguarda anúncio terminar antes de capturar.
+- Responde de forma síncrona em `POST /api/screenshot`.
 
 ## Fora de escopo do v1
 
-- Login Google ou qualquer sessão autenticada.
-- YouTube Shorts, Twitch Clips e formatos fora do padrão.
+- Qualquer provider diferente de Twitch.
+- Conteúdo privado, com login obrigatório, geoblock ou DRM.
+- Twitch Clips e formatos fora do padrão.
 - Filas assíncronas, armazenamento de screenshots e autenticação da API.
 
 ## Requisitos
@@ -24,7 +24,6 @@ Serviço HTTP em `Node.js + Fastify + Playwright` que recebe uma URL pública de
 - Node `22+`
 - `pnpm`
 - Chromium do Playwright instalado localmente
-- Chave `RapidAPI` para capturas de YouTube
 
 ## Rodando localmente
 
@@ -47,9 +46,7 @@ Servidor padrão: `http://localhost:3000`
 - `MAX_CONCURRENT_CAPTURES`: capturas simultâneas. Default `1`.
 - `VIEWPORT_WIDTH` e `VIEWPORT_HEIGHT`: resolução fixa da viewport. Defaults `1920x1080`.
 - `USER_AGENT`: user-agent desktop usado no browser.
-- `YOUTUBE_RAPIDAPI_KEY`: chave da API externa usada nas capturas de YouTube.
-- `YOUTUBE_RAPIDAPI_HOST`: host RapidAPI do provider. Default `youtube-thumbnail-screenshots-api.p.rapidapi.com`.
-- `YOUTUBE_RAPIDAPI_BASE_URL`: base URL do provider. Default `https://youtube-thumbnail-screenshots-api.p.rapidapi.com`.
+- `TWITCH_ALLOWED_HOSTS`: lista de hosts aceitos para Twitch.
 
 ## API
 
@@ -69,7 +66,7 @@ Body:
 
 ```json
 {
-  "url": "https://www.youtube.com/watch?v=abc123"
+  "url": "https://www.twitch.tv/videos/123456789"
 }
 ```
 
@@ -77,7 +74,7 @@ Resposta de sucesso:
 
 - Status `200`
 - `Content-Type: image/png`
-- Header `X-Provider: youtube|twitch`
+- Header `X-Provider: twitch`
 - Header `X-Ad-Wait-Ms: <tempo-em-ms>`
 
 Exemplo com `curl`:
@@ -85,7 +82,7 @@ Exemplo com `curl`:
 ```bash
 curl -X POST http://localhost:3000/api/screenshot \
   -H 'content-type: application/json' \
-  -d '{"url":"https://www.youtube.com/watch?v=abc123"}' \
+  -d '{"url":"https://www.twitch.tv/videos/123456789"}' \
   --output screenshot.png \
   -D -
 ```
@@ -94,8 +91,8 @@ Erros padronizados:
 
 - `400`: body inválido
 - `422`: URL ou conteúdo não suportado
-- `500`: falha de captura local ou da integração externa
-- `504`: anúncio da Twitch não terminou antes do timeout
+- `500`: falha de navegação, player ou fullscreen
+- `504`: anúncio não terminou antes do timeout
 
 Exemplo de erro:
 
@@ -122,13 +119,6 @@ Subir a API:
 docker compose up -d app
 ```
 
-O compose já força `HEADLESS=true` e `PRETTY_LOGS=false`. Para capturas de YouTube, exporte a chave antes de subir:
-
-```bash
-export YOUTUBE_RAPIDAPI_KEY='sua-chave'
-docker compose up -d app
-```
-
 ## Scripts
 
 ```bash
@@ -148,12 +138,7 @@ docker compose up -d app
 Os smoke tests são opcionais:
 
 ```bash
-YOUTUBE_RAPIDAPI_KEY='sua-chave' \
-SMOKE_YOUTUBE_URL='https://www.youtube.com/watch?v=...' \
-pnpm test:smoke
-
-SMOKE_TWITCH_URL='https://www.twitch.tv/videos/...' \
-pnpm test:smoke
+SMOKE_TWITCH_URL='https://www.twitch.tv/videos/...' pnpm test:smoke
 ```
 
 ## Docker

@@ -2,11 +2,6 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const DEFAULT_YOUTUBE_HOSTS = [
-  "youtube.com",
-  "www.youtube.com",
-  "m.youtube.com"
-];
 const DEFAULT_TWITCH_HOSTS = ["twitch.tv", "www.twitch.tv"];
 const DEFAULT_INSECURE_HOSTS = ["localhost", "127.0.0.1"];
 const DEFAULT_USER_AGENT =
@@ -23,10 +18,6 @@ export interface AppConfig {
   captureTimeoutMs: number;
   maxConcurrentCaptures: number;
   userAgent: string;
-  youtubeRapidApiKey?: string;
-  youtubeRapidApiHost: string;
-  youtubeRapidApiBaseUrl: string;
-  youtubeAllowedHosts: string[];
   twitchAllowedHosts: string[];
   insecureAllowedHosts: string[];
 }
@@ -73,10 +64,6 @@ function parseHostList(value: string | undefined, fallback: string[]): string[] 
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const youtubeRapidApiHost =
-    env.YOUTUBE_RAPIDAPI_HOST?.trim() ||
-    "youtube-thumbnail-screenshots-api.p.rapidapi.com";
-
   return {
     host: env.HOST ?? "0.0.0.0",
     port: parseNumber(env, "PORT", 3000),
@@ -92,15 +79,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     captureTimeoutMs: parseNumber(env, "CAPTURE_TIMEOUT_MS", 120_000),
     maxConcurrentCaptures: parseNumber(env, "MAX_CONCURRENT_CAPTURES", 1),
     userAgent: env.USER_AGENT ?? DEFAULT_USER_AGENT,
-    youtubeRapidApiKey: env.YOUTUBE_RAPIDAPI_KEY?.trim() || undefined,
-    youtubeRapidApiHost,
-    youtubeRapidApiBaseUrl:
-      env.YOUTUBE_RAPIDAPI_BASE_URL?.trim() ||
-      `https://${youtubeRapidApiHost}`,
-    youtubeAllowedHosts: parseHostList(
-      env.YOUTUBE_ALLOWED_HOSTS,
-      DEFAULT_YOUTUBE_HOSTS
-    ),
     twitchAllowedHosts: parseHostList(
       env.TWITCH_ALLOWED_HOSTS,
       DEFAULT_TWITCH_HOSTS

@@ -1,4 +1,4 @@
-export type ProviderName = "youtube" | "twitch";
+export type ProviderName = "twitch";
 
 export interface ScreenshotRequestBody {
   url: string;

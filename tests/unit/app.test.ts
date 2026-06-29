@@ -25,7 +25,7 @@ describe("HTTP app", () => {
       logger,
       captureService: {
         capture: async () => ({
-          provider: "youtube",
+          provider: "twitch",
           adWaitMs: 0,
           image: Buffer.from("unused")
         })
@@ -47,7 +47,7 @@ describe("HTTP app", () => {
       logger,
       captureService: {
         capture: async () => ({
-          provider: "youtube",
+          provider: "twitch",
           adWaitMs: 0,
           image: Buffer.from("unused")
         })
@@ -78,7 +78,7 @@ describe("HTTP app", () => {
         capture: async () => {
           throw createUnsupportedUrlError(
             "https://example.com",
-            "Only YouTube and Twitch URLs are supported."
+            "Only Twitch URLs are supported."
           );
         }
       }
@@ -95,7 +95,7 @@ describe("HTTP app", () => {
     expect(response.json()).toEqual({
       error: {
         code: "unsupported_url",
-        message: "Only YouTube and Twitch URLs are supported.",
+        message: "Only Twitch URLs are supported.",
         details: {
           url: "https://example.com"
         }
@@ -108,7 +108,7 @@ describe("HTTP app", () => {
       logger,
       captureService: {
         capture: async () => {
-          throw createAdTimeoutError("youtube", 2_000);
+          throw createAdTimeoutError("twitch", 2_000);
         }
       }
     });
@@ -117,16 +117,16 @@ describe("HTTP app", () => {
     const response = await app.inject({
       method: "POST",
       url: "/api/screenshot",
-      payload: { url: "https://www.youtube.com/watch?v=abc123" }
+      payload: { url: "https://www.twitch.tv/videos/123456789" }
     });
 
     expect(response.statusCode).toBe(504);
     expect(response.json()).toEqual({
       error: {
         code: "ad_timeout",
-        message: "Timed out while waiting for youtube advertisement to finish.",
+        message: "Timed out while waiting for twitch advertisement to finish.",
         details: {
-          provider: "youtube",
+          provider: "twitch",
           waitedMs: 2_000
         }
       }

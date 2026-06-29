@@ -2,7 +2,7 @@
   "name": "gusta-screen",
   "version": "0.1.0",
   "private": true,
-  "description": "HTTP service that returns full-screen screenshots from YouTube and Twitch using Playwright.",
+  "description": "HTTP service that returns full-screen screenshots from Twitch using Playwright.",
   "engines": {
     "node": ">=22.0.0"
   },
