@@ -11,6 +11,7 @@ Serviço HTTP em `Node.js + Fastify + Playwright` que recebe uma URL pública da
 - Entra em fullscreen pelo player.
 - Aguarda anúncio terminar antes de capturar.
 - Responde de forma síncrona em `POST /api/screenshot`.
+- Executa até `20` capturas simultâneas por padrão, sem fila.
 
 ## Fora de escopo do v1
 
@@ -43,7 +44,7 @@ Servidor padrão: `http://localhost:3000`
 - `APP_BIND_ADDRESS` e `APP_PORT`: bind/porta do serviço no `docker compose`.
 - `HEADLESS`: executa o Chromium em headless. Default `true`.
 - `CAPTURE_TIMEOUT_MS`: timeout total por captura. Default `120000`.
-- `MAX_CONCURRENT_CAPTURES`: capturas simultâneas. Default `1`.
+- `MAX_CONCURRENT_CAPTURES`: capturas simultâneas sem fila. Default `20`.
 - `VIEWPORT_WIDTH` e `VIEWPORT_HEIGHT`: resolução fixa da viewport. Defaults `1920x1080`.
 - `USER_AGENT`: user-agent desktop usado no browser.
 - `TWITCH_ALLOWED_HOSTS`: lista de hosts aceitos para Twitch.
@@ -92,6 +93,7 @@ Erros padronizados:
 
 - `400`: body inválido
 - `422`: URL ou conteúdo não suportado
+- `429`: serviço no limite de capturas simultâneas
 - `500`: falha de navegação, player ou fullscreen
 - `504`: anúncio não terminou antes do timeout
 

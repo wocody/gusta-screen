@@ -18,4 +18,10 @@ describe("loadConfig", () => {
     expect(config.captureTimeoutMs).toBe(240_000);
     expect(config.headless).toBe(false);
   });
+
+  it("defaults to 20 concurrent captures", () => {
+    const config = loadConfig({});
+
+    expect(config.maxConcurrentCaptures).toBe(20);
+  });
 });

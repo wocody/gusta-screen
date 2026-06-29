@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "../../src/api/app";
 import {
   createUnsupportedUrlError,
-  createAdTimeoutError
+  createAdTimeoutError,
+  createTooManyRequestsError
 } from "../../src/errors";
 import { createLogger } from "../../src/logger";
 import { createTestConfig } from "../helpers/test-config";
@@ -128,6 +129,36 @@ describe("HTTP app", () => {
         details: {
           provider: "twitch",
           waitedMs: 2_000
+        }
+      }
+    });
+  });
+
+  it("maps capacity errors to HTTP 429", async () => {
+    const app = createApp({
+      logger,
+      captureService: {
+        capture: async () => {
+          throw createTooManyRequestsError(20, 20);
+        }
+      }
+    });
+    apps.add(app);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/screenshot",
+      payload: { url: "https://www.twitch.tv/videos/123456789" }
+    });
+
+    expect(response.statusCode).toBe(429);
+    expect(response.json()).toEqual({
+      error: {
+        code: "too_many_requests",
+        message: "The capture service is at capacity. Try again shortly.",
+        details: {
+          activeCaptures: 20,
+          maxConcurrentCaptures: 20
         }
       }
     });

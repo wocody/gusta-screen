@@ -6,6 +6,7 @@ export type ErrorCode =
   | "unsupported_content"
   | "ad_timeout"
   | "fullscreen_failed"
+  | "too_many_requests"
   | "capture_failed";
 
 export class AppError extends Error {
@@ -68,6 +69,21 @@ export function createCaptureFailedError(
   details?: Record<string, unknown>
 ): AppError {
   return new AppError(500, "capture_failed", message, details);
+}
+
+export function createTooManyRequestsError(
+  activeCaptures: number,
+  maxConcurrentCaptures: number
+): AppError {
+  return new AppError(
+    429,
+    "too_many_requests",
+    "The capture service is at capacity. Try again shortly.",
+    {
+      activeCaptures,
+      maxConcurrentCaptures
+    }
+  );
 }
 
 export function toErrorPayload(error: AppError): Record<string, unknown> {

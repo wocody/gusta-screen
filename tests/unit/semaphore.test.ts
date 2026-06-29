@@ -3,28 +3,32 @@ import { describe, expect, it } from "vitest";
 import { Semaphore } from "../../src/concurrency/semaphore";
 
 describe("Semaphore", () => {
-  it("runs only one task at a time when concurrency is 1", async () => {
+  it("acquires immediately while under capacity", () => {
+    const semaphore = new Semaphore(2);
+
+    const firstRelease = semaphore.tryAcquire();
+    const secondRelease = semaphore.tryAcquire();
+
+    expect(firstRelease).toBeTypeOf("function");
+    expect(secondRelease).toBeTypeOf("function");
+    expect(semaphore.currentCount).toBe(2);
+
+    firstRelease?.();
+    secondRelease?.();
+    expect(semaphore.currentCount).toBe(0);
+  });
+
+  it("rejects immediately when capacity is exhausted", () => {
     const semaphore = new Semaphore(1);
-    const checkpoints: string[] = [];
 
-    const first = semaphore.runExclusive(async () => {
-      checkpoints.push("first:start");
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      checkpoints.push("first:end");
-    });
+    const release = semaphore.tryAcquire();
+    const blocked = semaphore.tryAcquire();
 
-    const second = semaphore.runExclusive(async () => {
-      checkpoints.push("second:start");
-      checkpoints.push("second:end");
-    });
+    expect(release).toBeTypeOf("function");
+    expect(blocked).toBeUndefined();
+    expect(semaphore.currentCount).toBe(1);
 
-    await Promise.all([first, second]);
-
-    expect(checkpoints).toEqual([
-      "first:start",
-      "first:end",
-      "second:start",
-      "second:end"
-    ]);
+    release?.();
+    expect(semaphore.currentCount).toBe(0);
   });
 });

@@ -77,7 +77,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     viewportWidth: parseNumber(env, "VIEWPORT_WIDTH", 1920),
     viewportHeight: parseNumber(env, "VIEWPORT_HEIGHT", 1080),
     captureTimeoutMs: parseNumber(env, "CAPTURE_TIMEOUT_MS", 120_000),
-    maxConcurrentCaptures: parseNumber(env, "MAX_CONCURRENT_CAPTURES", 1),
+    maxConcurrentCaptures: parseNumber(env, "MAX_CONCURRENT_CAPTURES", 20),
     userAgent: env.USER_AGENT ?? DEFAULT_USER_AGENT,
     twitchAllowedHosts: parseHostList(
       env.TWITCH_ALLOWED_HOSTS,

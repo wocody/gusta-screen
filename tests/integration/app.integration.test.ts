@@ -130,6 +130,33 @@ describe("POST /api/screenshot integration", () => {
     }
   });
 
+  it("falls back when Twitch video.play() hangs", async () => {
+    const url = "https://www.twitch.tv/hangingplay";
+    const app = createIntegrationApp(
+      {
+        [url]: createTwitchFixtureHtml({
+          hangingPlayMs: 1_600
+        })
+      },
+      {
+        captureTimeoutMs: 8_000
+      }
+    );
+
+    try {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/screenshot",
+        payload: { url }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.headers["x-provider"]).toBe("twitch");
+    } finally {
+      await app.close();
+    }
+  });
+
   it("returns 504 when a Twitch ad never finishes", async () => {
     const url = "https://www.twitch.tv/somechannel";
     const app = createIntegrationApp(

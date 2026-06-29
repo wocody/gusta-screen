@@ -5,6 +5,7 @@ import type { AppConfig } from "../config";
 import {
   AppError,
   createCaptureFailedError,
+  createTooManyRequestsError,
   isAppError
 } from "../errors";
 import type { AppLogger } from "../logger";
@@ -48,22 +49,37 @@ export class PlaywrightCaptureService implements CaptureService {
 
     baseLogger.info(
       {
-        step: "capture:queue_wait",
+        step: "capture:slot_check",
         activeCount: this.semaphore.currentCount,
-        pendingCount: this.semaphore.pendingCount
+        maxConcurrentCaptures: this.config.maxConcurrentCaptures
       },
-      "Waiting for capture slot"
+      "Checking capture slot availability"
     );
-    const queueStartedAt = Date.now();
-    const release = await this.semaphore.acquire();
-    const queueWaitMs = Date.now() - queueStartedAt;
+    const release = this.semaphore.tryAcquire();
+
+    if (!release) {
+      baseLogger.warn(
+        {
+          step: "capture:slot_rejected",
+          activeCount: this.semaphore.currentCount,
+          maxConcurrentCaptures: this.config.maxConcurrentCaptures
+        },
+        "Capture request rejected because the service is at capacity"
+      );
+      throw createTooManyRequestsError(
+        this.semaphore.currentCount,
+        this.config.maxConcurrentCaptures
+      );
+    }
+
+    const queueWaitMs = 0;
 
     baseLogger.info(
       {
         step: "capture:slot_acquired",
         queueWaitMs,
         activeCount: this.semaphore.currentCount,
-        pendingCount: this.semaphore.pendingCount
+        maxConcurrentCaptures: this.config.maxConcurrentCaptures
       },
       "Capture slot acquired"
     );

@@ -42,6 +42,7 @@ const AD_SELECTORS = [
   '[data-a-target="video-ad-label"]',
   ".player-ad-notice"
 ];
+const PLAY_PROMISE_TIMEOUT_MS = 1_500;
 const UNSUPPORTED_TEXT = [
   "subscribe to watch",
   "this channel is unavailable",
@@ -392,27 +393,38 @@ export class TwitchProvider implements ProviderHandler {
       "Checked Twitch play/pause control state"
     );
 
-    const playedViaApi = await video
-      .evaluate(async (element) => {
+    const playOutcome = await video
+      .evaluate(async (element, timeoutMs: number) => {
+        const media = element as HTMLMediaElement;
+
         try {
-          await (element as HTMLMediaElement).play();
-          return true;
+          const playPromise = media.play();
+          if (!playPromise) {
+            return "no_promise";
+          }
+
+          return await Promise.race([
+            playPromise.then(() => "resolved"),
+            new Promise<string>((resolve) => {
+              window.setTimeout(() => resolve("timed_out"), timeoutMs);
+            })
+          ]);
         } catch {
-          return false;
+          return "rejected";
         }
-      })
-      .catch(() => false);
+      }, PLAY_PROMISE_TIMEOUT_MS)
+      .catch(() => "errored");
     logger.info(
       {
         step: "twitch:playback_attempt",
         strategy: "video.play",
-        dispatched: playedViaApi
+        outcome: playOutcome
       },
       "Attempted to start Twitch playback with video.play()"
     );
 
     if (
-      playedViaApi &&
+      playOutcome === "resolved" &&
       (await this.waitForPlayback(
         page,
         isPlaying,

@@ -4,6 +4,7 @@ interface BaseFixtureOptions {
   fullscreenWorks?: boolean;
   startsPaused?: boolean;
   autoplayStartMs?: number;
+  hangingPlayMs?: number;
 }
 
 interface AdOptions {
@@ -29,6 +30,7 @@ export function createTwitchFixtureHtml(
     fullscreenWorks: options.fullscreenWorks ?? true,
     startsPaused: options.startsPaused ?? true,
     autoplayStartMs: options.autoplayStartMs ?? null,
+    hangingPlayMs: options.hangingPlayMs ?? 0,
     ad: {
       type: options.ad?.type ?? "none",
       durationMs: options.ad?.durationMs ?? 900
@@ -151,6 +153,19 @@ export function createTwitchFixtureHtml(
       drawFrame();
       window.setInterval(drawFrame, 100);
       video.srcObject = canvas.captureStream(30);
+
+      const nativePlay = video.play.bind(video);
+      video.play = () => {
+        if (!scenario.hangingPlayMs) {
+          return nativePlay();
+        }
+
+        return new Promise((resolve, reject) => {
+          window.setTimeout(() => {
+            nativePlay().then(resolve).catch(reject);
+          }, scenario.hangingPlayMs);
+        });
+      };
 
       document.querySelector('[data-a-target="player-overlay-play-button"]').addEventListener("click", () => {
         void video.play();
