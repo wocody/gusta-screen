@@ -2,6 +2,7 @@ interface BaseFixtureOptions {
   consent?: boolean;
   gate?: boolean;
   fullscreenWorks?: boolean;
+  fullscreenHotkeyWorks?: boolean;
   startsPaused?: boolean;
   autoplayStartMs?: number;
   hangingPlayMs?: number;
@@ -28,6 +29,7 @@ export function createTwitchFixtureHtml(
     consent: options.consent ?? false,
     gate: options.gate ?? false,
     fullscreenWorks: options.fullscreenWorks ?? true,
+    fullscreenHotkeyWorks: options.fullscreenHotkeyWorks ?? false,
     startsPaused: options.startsPaused ?? true,
     autoplayStartMs: options.autoplayStartMs ?? null,
     hangingPlayMs: options.hangingPlayMs ?? 0,
@@ -219,6 +221,11 @@ export function createTwitchFixtureHtml(
 
           video.pause();
           syncToggleLabel();
+          return;
+        }
+
+        if (event.key.toLowerCase() === "f" && scenario.fullscreenHotkeyWorks) {
+          void player.requestFullscreen();
         }
       });
 

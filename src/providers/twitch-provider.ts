@@ -42,6 +42,7 @@ const AD_SELECTORS = [
   '[data-a-target="video-ad-label"]',
   ".player-ad-notice"
 ];
+const FULLSCREEN_BUTTON_CLICK_TIMEOUT_MS = 3_000;
 const PLAY_PROMISE_TIMEOUT_MS = 1_500;
 const UNSUPPORTED_TEXT = [
   "subscribe to watch",
@@ -255,37 +256,127 @@ export class TwitchProvider implements ProviderHandler {
     );
     await revealPlayerControls(page);
     await page.locator("video").first().click().catch(() => undefined);
-    const clickedSelector = await clickFirstVisible(page, FULLSCREEN_SELECTORS);
-
-    if (!clickedSelector) {
-      logger.error(
-        { step: "twitch:fullscreen_failed" },
-        "Twitch fullscreen button was not found"
-      );
-      throw createFullscreenError(this.name);
-    }
-
-    logger.info(
-      { step: "twitch:fullscreen_click", selector: clickedSelector },
-      "Clicked Twitch fullscreen control"
-    );
-    const enteredFullscreen = await waitForFullscreen(
+    const clickedSelector = await this.tryClickFullscreenControl(
       page,
-      Math.min(5_000, deadline.slice(5_000))
+      Math.min(
+        FULLSCREEN_BUTTON_CLICK_TIMEOUT_MS,
+        deadline.slice(FULLSCREEN_BUTTON_CLICK_TIMEOUT_MS)
+      ),
+      logger
     );
 
-    if (!enteredFullscreen) {
-      logger.error(
-        { step: "twitch:fullscreen_failed" },
-        "Twitch player did not enter fullscreen"
+    if (clickedSelector) {
+      logger.info(
+        { step: "twitch:fullscreen_click", selector: clickedSelector },
+        "Clicked Twitch fullscreen control"
       );
-      throw createFullscreenError(this.name);
+
+      const enteredViaButton = await waitForFullscreen(
+        page,
+        Math.min(2_000, deadline.slice(2_000))
+      );
+
+      if (enteredViaButton) {
+        logger.info(
+          { step: "twitch:fullscreen_ready", strategy: "control_click" },
+          "Twitch player entered fullscreen"
+        );
+        return;
+      }
+
+      logger.warn(
+        { step: "twitch:fullscreen_retry", strategy: "hotkey_f" },
+        "Twitch fullscreen control did not enter fullscreen, trying hotkey"
+      );
+    } else {
+      logger.warn(
+        { step: "twitch:fullscreen_retry", strategy: "hotkey_f" },
+        "Twitch fullscreen control click failed, trying hotkey"
+      );
     }
 
-    logger.info(
-      { step: "twitch:fullscreen_ready" },
-      "Twitch player entered fullscreen"
+    await revealPlayerControls(page);
+    await page.locator("video").first().click().catch(() => undefined);
+    await page.keyboard.press("f").catch((error: unknown) => {
+      logger.warn(
+        {
+          step: "twitch:fullscreen_hotkey_failed",
+          err: error
+        },
+        "Failed to dispatch Twitch fullscreen hotkey"
+      );
+    });
+
+    const enteredViaHotkey = await waitForFullscreen(
+      page,
+      Math.min(3_000, deadline.slice(3_000))
     );
+
+    if (enteredViaHotkey) {
+      logger.info(
+        { step: "twitch:fullscreen_ready", strategy: "hotkey_f" },
+        "Twitch player entered fullscreen"
+      );
+      return;
+    }
+
+    logger.error(
+      { step: "twitch:fullscreen_failed" },
+      "Twitch player did not enter fullscreen"
+    );
+    throw createFullscreenError(this.name);
+  }
+
+  private async tryClickFullscreenControl(
+    page: Page,
+    timeoutMs: number,
+    logger: ProviderRuntime["logger"]
+  ): Promise<string | null> {
+    for (const selector of FULLSCREEN_SELECTORS) {
+      const locator = page.locator(selector).first();
+      const isVisible = await locator.isVisible().catch(() => false);
+      if (!isVisible) {
+        continue;
+      }
+
+      try {
+        await locator.click({
+          timeout: timeoutMs,
+          noWaitAfter: true
+        });
+        return selector;
+      } catch (error) {
+        logger.warn(
+          {
+            step: "twitch:fullscreen_click_retry",
+            selector,
+            strategy: "force_click",
+            err: error
+          },
+          "Twitch fullscreen control click failed, retrying with force"
+        );
+
+        try {
+          await locator.click({
+            timeout: Math.min(timeoutMs, 1_000),
+            force: true,
+            noWaitAfter: true
+          });
+          return selector;
+        } catch (forceError) {
+          logger.warn(
+            {
+              step: "twitch:fullscreen_click_failed",
+              selector,
+              err: forceError
+            },
+            "Twitch fullscreen control could not be clicked"
+          );
+        }
+      }
+    }
+
+    return null;
   }
 
   private async waitForAdsToClear(
