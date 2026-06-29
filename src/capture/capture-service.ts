@@ -15,7 +15,7 @@ import { Semaphore } from "../concurrency/semaphore";
 import { Deadline } from "./deadline";
 
 export interface CaptureService {
-  capture(url: string): Promise<CaptureResult>;
+  capture(url: string, logger?: AppLogger): Promise<CaptureResult>;
 }
 
 export interface CaptureServiceHooks {
@@ -37,18 +37,75 @@ export class PlaywrightCaptureService implements CaptureService {
     this.semaphore = new Semaphore(config.maxConcurrentCaptures);
   }
 
-  async capture(url: string): Promise<CaptureResult> {
+  async capture(url: string, logger: AppLogger = this.logger): Promise<CaptureResult> {
+    const captureStartedAt = Date.now();
+    logger.info({ step: "capture:resolve_target", rawUrl: url }, "Resolving target URL");
     const target = resolveTargetUrl(url, this.config);
+    const baseLogger = logger.child({
+      provider: target.provider,
+      url: target.normalizedUrl
+    });
 
-    return await this.semaphore.runExclusive(async () => {
+    baseLogger.info(
+      {
+        step: "capture:queue_wait",
+        activeCount: this.semaphore.currentCount,
+        pendingCount: this.semaphore.pendingCount
+      },
+      "Waiting for capture slot"
+    );
+    const queueStartedAt = Date.now();
+    const release = await this.semaphore.acquire();
+    const queueWaitMs = Date.now() - queueStartedAt;
+
+    baseLogger.info(
+      {
+        step: "capture:slot_acquired",
+        queueWaitMs,
+        activeCount: this.semaphore.currentCount,
+        pendingCount: this.semaphore.pendingCount
+      },
+      "Capture slot acquired"
+    );
+
+    try {
       const deadline = new Deadline(this.config.captureTimeoutMs);
-      const requestLogger = this.logger.child({
-        provider: target.provider,
-        url: target.normalizedUrl
+      const requestLogger = baseLogger.child({
+        queueWaitMs,
+        timeoutMs: this.config.captureTimeoutMs
       });
-      const context = await this.browserManager.newContext();
+
+      requestLogger.info(
+        {
+          step: "capture:context_create",
+          remainingMs: deadline.remainingMs()
+        },
+        "Creating Playwright browser context"
+      );
+      const context = await this.browserManager.newContext(requestLogger);
+      requestLogger.info(
+        {
+          step: "capture:context_ready",
+          remainingMs: deadline.remainingMs()
+        },
+        "Playwright browser context created"
+      );
       await this.hooks.onContextCreated?.(context, target);
+      requestLogger.info(
+        {
+          step: "capture:page_create",
+          remainingMs: deadline.remainingMs()
+        },
+        "Opening Playwright page"
+      );
       const page = await context.newPage();
+      requestLogger.info(
+        {
+          step: "capture:page_ready",
+          remainingMs: deadline.remainingMs()
+        },
+        "Playwright page opened"
+      );
 
       page.setDefaultNavigationTimeout(this.config.captureTimeoutMs);
       page.setDefaultTimeout(Math.min(this.config.captureTimeoutMs, 15_000));
@@ -62,19 +119,52 @@ export class PlaywrightCaptureService implements CaptureService {
         await page
           .waitForLoadState("load", { timeout: deadline.slice(5_000) })
           .catch(() => undefined);
+        requestLogger.info(
+          {
+            step: "capture:navigation_complete",
+            remainingMs: deadline.remainingMs()
+          },
+          "Target page loaded"
+        );
 
         const provider = createProvider(target.provider);
+        requestLogger.info(
+          {
+            step: "capture:provider_prepare",
+            provider: provider.name,
+            remainingMs: deadline.remainingMs()
+          },
+          "Preparing provider for screenshot"
+        );
         const { adWaitMs } = await provider.prepareForScreenshot({
           page,
           deadline,
           logger: requestLogger
         });
+        requestLogger.info(
+          {
+            step: "capture:provider_ready",
+            adWaitMs,
+            remainingMs: deadline.remainingMs()
+          },
+          "Provider preparation completed"
+        );
 
         requestLogger.info(
           { step: "screenshot", adWaitMs },
           "Capturing PNG screenshot"
         );
         const image = await page.screenshot({ type: "png" });
+        requestLogger.info(
+          {
+            step: "capture:complete",
+            adWaitMs,
+            imageBytes: image.length,
+            elapsedMs: Date.now() - captureStartedAt,
+            remainingMs: deadline.remainingMs()
+          },
+          "Capture completed successfully"
+        );
 
         return {
           provider: target.provider,
@@ -82,11 +172,23 @@ export class PlaywrightCaptureService implements CaptureService {
           image
         };
       } catch (error) {
+        requestLogger.error(
+          {
+            step: "capture:failed",
+            elapsedMs: Date.now() - captureStartedAt,
+            remainingMs: deadline.remainingMs(),
+            err: error
+          },
+          "Capture failed"
+        );
         throw this.mapError(error);
       } finally {
+        requestLogger.info({ step: "capture:context_close" }, "Closing Playwright context");
         await context.close().catch(() => undefined);
       }
-    });
+    } finally {
+      release();
+    }
   }
 
   private mapError(error: unknown): AppError {

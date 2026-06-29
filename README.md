@@ -47,6 +47,7 @@ Servidor padrão: `http://localhost:3000`
 - `VIEWPORT_WIDTH` e `VIEWPORT_HEIGHT`: resolução fixa da viewport. Defaults `1920x1080`.
 - `USER_AGENT`: user-agent desktop usado no browser.
 - `TWITCH_ALLOWED_HOSTS`: lista de hosts aceitos para Twitch.
+- `PRETTY_LOGS`: quando `false`, emite logs JSON no `stdout`, ideal para o console em tempo real do EasyPanel.
 
 ## API
 
@@ -156,3 +157,18 @@ docker run --rm -p 3000:3000 --env-file .env gusta-screen
 ```
 
 O `Dockerfile` usa a imagem oficial do Playwright compatível com `playwright@1.61.1`.
+
+## Logs
+
+Todos os logs da API e da captura saem no `stdout`, então ficam visíveis no console em tempo real do EasyPanel.
+
+Etapas principais logadas por requisição:
+
+- `http:request_started` e `http:request_completed`
+- `capture:queue_wait`, `capture:slot_acquired` e `capture:complete`
+- `capture:navigation_complete`
+- `twitch:playback_*`
+- `twitch:fullscreen_*`
+- `twitch:ad_detected`, `twitch:ad_clear` e `twitch:ad_timeout`
+
+Para produção no EasyPanel, prefira `PRETTY_LOGS=false` para manter logs estruturados em JSON.

@@ -35,12 +35,54 @@ export function createApp({
   onClose
 }: CreateAppOptions) {
   const app = Fastify({ loggerInstance: logger });
+  const requestStartedAt = new Map<string, number>();
 
   if (onClose) {
     app.addHook("onClose", async () => {
       await onClose();
     });
   }
+
+  app.addHook("onRequest", async (request) => {
+    const startedAt = Date.now();
+    requestStartedAt.set(request.id, startedAt);
+    request.log.info(
+      {
+        step: "http:request_started",
+        method: request.method,
+        url: request.url,
+        remoteAddress: request.ip
+      },
+      "HTTP request started"
+    );
+    request.raw.on("aborted", () => {
+      request.log.warn(
+        {
+          step: "http:request_aborted",
+          method: request.method,
+          url: request.url,
+          elapsedMs: Date.now() - startedAt
+        },
+        "HTTP request aborted by client"
+      );
+      requestStartedAt.delete(request.id);
+    });
+  });
+
+  app.addHook("onResponse", async (request, reply) => {
+    const startedAt = requestStartedAt.get(request.id);
+    requestStartedAt.delete(request.id);
+    request.log.info(
+      {
+        step: "http:request_completed",
+        method: request.method,
+        url: request.url,
+        statusCode: reply.statusCode,
+        elapsedMs: startedAt ? Date.now() - startedAt : undefined
+      },
+      "HTTP request completed"
+    );
+  });
 
   app.get("/health", async () => {
     return { status: "ok" };
@@ -64,7 +106,24 @@ export function createApp({
       request: FastifyRequest<{ Body: ScreenshotRequestBody }>,
       reply: FastifyReply
     ) => {
-      const result = await captureService.capture(request.body.url);
+      const requestLogger = request.log.child({
+        route: "/api/screenshot",
+        targetUrl: request.body.url
+      });
+      requestLogger.info(
+        { step: "http:capture_started" },
+        "Starting screenshot capture request"
+      );
+      const result = await captureService.capture(request.body.url, requestLogger);
+      requestLogger.info(
+        {
+          step: "http:capture_succeeded",
+          provider: result.provider,
+          adWaitMs: result.adWaitMs,
+          imageBytes: result.image.length
+        },
+        "Screenshot capture request succeeded"
+      );
       reply.header("Content-Type", "image/png");
       reply.header("X-Provider", result.provider);
       reply.header("X-Ad-Wait-Ms", String(result.adWaitMs));
@@ -73,7 +132,19 @@ export function createApp({
   );
 
   app.setErrorHandler((error, request, reply) => {
+    const startedAt = requestStartedAt.get(request.id);
+    const elapsedMs = startedAt ? Date.now() - startedAt : undefined;
+
     if (isValidationError(error)) {
+      request.log.warn(
+        {
+          step: "http:request_invalid",
+          method: request.method,
+          url: request.url,
+          elapsedMs
+        },
+        "HTTP request body validation failed"
+      );
       return sendError(
         reply,
         new AppError(
@@ -86,13 +157,25 @@ export function createApp({
 
     if (error instanceof AppError) {
       request.log.warn(
-        { code: error.code, details: error.details },
+        {
+          step: "http:request_failed",
+          code: error.code,
+          details: error.details,
+          elapsedMs
+        },
         error.message
       );
       return sendError(reply, error);
     }
 
-    request.log.error({ err: error }, "Unhandled application error");
+    request.log.error(
+      {
+        step: "http:request_failed",
+        err: error,
+        elapsedMs
+      },
+      "Unhandled application error"
+    );
     return sendError(
       reply,
       createCaptureFailedError("Unhandled application error.")

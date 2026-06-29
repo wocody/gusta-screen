@@ -1,8 +1,9 @@
 import pino, { type Logger } from "pino";
+import type { FastifyBaseLogger } from "fastify";
 
 import type { AppConfig } from "./config";
 
-export type AppLogger = Logger;
+export type AppLogger = FastifyBaseLogger;
 
 function resolvePrettyTransport(config: AppConfig) {
   if (!config.prettyLogs) {
@@ -29,5 +30,5 @@ export function createLogger(config: AppConfig): AppLogger {
     level: config.logLevel,
     base: undefined,
     transport: resolvePrettyTransport(config)
-  });
+  }) as Logger as AppLogger;
 }
