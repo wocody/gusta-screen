@@ -85,6 +85,10 @@ export async function hideCursor(page: Page): Promise<void> {
   });
 }
 
+export async function moveMouseOutsideViewport(page: Page): Promise<void> {
+  await page.mouse.move(-50, -50).catch(() => undefined);
+}
+
 export async function revealPlayerControls(page: Page): Promise<void> {
   const viewport = page.viewportSize();
   const x = viewport ? Math.floor(viewport.width / 2) : 960;

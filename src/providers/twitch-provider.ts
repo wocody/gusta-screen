@@ -13,6 +13,7 @@ import {
   delay,
   hasVisibleSelector,
   hideCursor,
+  moveMouseOutsideViewport,
   revealPlayerControls,
   waitForFullscreen
 } from "./provider-helpers";
@@ -78,6 +79,7 @@ export class TwitchProvider implements ProviderHandler {
       "Waiting for Twitch player controls to disappear"
     );
     await hideCursor(page);
+    await moveMouseOutsideViewport(page);
     await delay(page, 1_500);
     logger.info(
       { step: "twitch:prepare_complete", adWaitMs },

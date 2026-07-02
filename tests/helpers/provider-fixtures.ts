@@ -3,6 +3,7 @@ interface BaseFixtureOptions {
   gate?: boolean;
   fullscreenWorks?: boolean;
   fullscreenHotkeyWorks?: boolean;
+  fullscreenInfoOverlay?: boolean;
   startsPaused?: boolean;
   autoplayStartMs?: number;
   hangingPlayMs?: number;
@@ -30,6 +31,7 @@ export function createTwitchFixtureHtml(
     gate: options.gate ?? false,
     fullscreenWorks: options.fullscreenWorks ?? true,
     fullscreenHotkeyWorks: options.fullscreenHotkeyWorks ?? false,
+    fullscreenInfoOverlay: options.fullscreenInfoOverlay ?? false,
     startsPaused: options.startsPaused ?? true,
     autoplayStartMs: options.autoplayStartMs ?? null,
     hangingPlayMs: options.hangingPlayMs ?? 0,
@@ -108,6 +110,22 @@ export function createTwitchFixtureHtml(
         background: rgba(0, 0, 0, 0.7);
         padding: 12px 16px;
       }
+      [data-test-selector="fullscreen-info-overlay"] {
+        position: absolute;
+        left: 20px;
+        top: 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        background: linear-gradient(
+          180deg,
+          rgba(10, 10, 18, 0.92) 0%,
+          rgba(10, 10, 18, 0.7) 100%
+        );
+        border-radius: 12px;
+        z-index: 30;
+      }
       [hidden] {
         display: none !important;
       }
@@ -127,17 +145,24 @@ export function createTwitchFixtureHtml(
       <button data-a-target="player-play-pause-button">Toggle Play</button>
       <button data-a-target="player-fullscreen-button">Fullscreen</button>
       <div data-test-selector="ad-banner-default-text" hidden>Commercial Break</div>
+      <div data-test-selector="fullscreen-info-overlay" hidden>
+        Fixture Channel · Fixture Title
+      </div>
     </div>
     <script>
       const scenario = ${scenario};
       const player = document.getElementById("twitch-player");
       const video = document.querySelector("video");
       const adBanner = document.querySelector('[data-test-selector="ad-banner-default-text"]');
+      const fullscreenInfoOverlay = document.querySelector(
+        '[data-test-selector="fullscreen-info-overlay"]'
+      );
       const canvas = document.createElement("canvas");
       canvas.width = 1280;
       canvas.height = 720;
       const context = canvas.getContext("2d");
       let frame = 0;
+      let isPointerOverPlayer = false;
 
       function drawFrame() {
         context.fillStyle = "#24184a";
@@ -201,6 +226,38 @@ export function createTwitchFixtureHtml(
         await player.requestFullscreen();
       });
 
+      function syncFullscreenInfoOverlay() {
+        if (!scenario.fullscreenInfoOverlay) {
+          fullscreenInfoOverlay.hidden = true;
+          return;
+        }
+
+        const isPlayerFullscreen = document.fullscreenElement === player;
+        fullscreenInfoOverlay.hidden = !(isPlayerFullscreen && isPointerOverPlayer);
+      }
+
+      player.addEventListener("mouseenter", () => {
+        isPointerOverPlayer = true;
+        syncFullscreenInfoOverlay();
+      });
+
+      player.addEventListener("mousemove", () => {
+        isPointerOverPlayer = true;
+        syncFullscreenInfoOverlay();
+      });
+
+      player.addEventListener("mouseleave", () => {
+        isPointerOverPlayer = false;
+        syncFullscreenInfoOverlay();
+      });
+
+      document.addEventListener("mouseleave", () => {
+        isPointerOverPlayer = false;
+        syncFullscreenInfoOverlay();
+      });
+
+      document.addEventListener("fullscreenchange", syncFullscreenInfoOverlay);
+
       document.getElementById("consent-accept").addEventListener("click", () => {
         document.getElementById("consent-banner").hidden = true;
       });
@@ -260,6 +317,7 @@ export function createTwitchFixtureHtml(
       }
 
       syncToggleLabel();
+      syncFullscreenInfoOverlay();
     </script>
   </body>
 </html>`;
